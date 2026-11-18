@@ -1,13 +1,14 @@
 import hashlib
 from pathlib import Path
 
-from Services.pdfReader import read_pdf
-from Services.chunker import split_text
-from Services.embedding import generate_embeddings
+from Services.orm.pdfReader import read_pdf
+from Services.orm.chunker import split_text
+from Services.orm.embedding import generate_embeddings
 from Database.chromaDb.chroma import collection
 
 
-PDF_FOLDER = "../Database/chromaDb/datas"
+
+PDF_FOLDER = Path(__file__).resolve().parents[2] / "Database" / "chromaDb" / "datas"
 
 
 def load_pdfs() -> list[Path]:
