@@ -1,0 +1,22 @@
+info:
+  name: RAG_request
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: http://localhost:8000/llm/rag
+  body:
+    type: json
+    data: |-
+      {
+          "search": "Quais documentos preciso para realizar a matrícula?"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

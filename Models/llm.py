@@ -1,3 +1,5 @@
+import os
+from dotenv import load_dotenv
 import torch
 from transformers import (
     AutoTokenizer,
@@ -5,7 +7,9 @@ from transformers import (
     BitsAndBytesConfig
 )
 
-MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"
+load_dotenv()
+
+MODEL_NAME = os.getenv("MODEL_AGENTE_NAME")
 
 
 def load_llm():
