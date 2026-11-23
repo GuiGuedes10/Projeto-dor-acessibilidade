@@ -1,7 +1,7 @@
 import hashlib
 from pathlib import Path
 
-from Services.orm.pdfReader import read_pdf
+from Services.orm.pdfReader import read_pdf_pages
 from Services.orm.chunker import split_text
 from Services.orm.embedding import generate_embeddings
 from Database.chromaDb.chroma import collection
@@ -18,12 +18,14 @@ def load_pdfs() -> list[Path]:
 def save_embeddings(
     chunks: list[str],
     embeddings: list[list[float]],
-    ids: list[str]
+    ids: list[str],
+    metadatas: list[dict]
 ):
-    collection.add(
+    collection.upsert(
         ids=ids,
         documents=chunks,
-        embeddings=embeddings
+        embeddings=embeddings,
+        metadatas=metadatas
     )
 
 
@@ -35,14 +37,19 @@ def process_pdf(path: Path):
         str(path.resolve()).encode()
     ).hexdigest()[:16]
 
-    chunks = split_text(read_pdf(str(path)))
+    chunks = []
+    metadatas = []
+    for page, text in read_pdf_pages(str(path)):
+        for chunk in split_text(text):
+            chunks.append(chunk)
+            metadatas.append({"source": path.name, "page": page, "file_hash": file_hash})
 
     if not chunks:
         print(f"Nenhum texto encontrado: {path.name}")
-        return
+        return False
 
     ids = [
-        f"{file_prefix}_{file_hash}_{i}"
+        f"{file_prefix}_{file_hash}_v2_{i}"
         for i in range(len(chunks))
     ]
 
@@ -57,16 +64,18 @@ def process_pdf(path: Path):
 
     if set(ids).issubset(set(previous_ids)):
         print(f"Documento já carregado: {path.name}")
-        return
-
-    if previous_ids:
-        collection.delete(ids=previous_ids)
+        return True
 
     embeddings = generate_embeddings(chunks)
 
-    save_embeddings(chunks, embeddings, ids)
+    save_embeddings(chunks, embeddings, ids, metadatas)
+
+    stale_ids = sorted(set(previous_ids) - set(ids))
+    if stale_ids:
+        collection.delete(ids=stale_ids)
 
     print(f"Documento carregado: {path.name}")
+    return True
 
 
 def initialize_knowledge_base():
@@ -79,7 +88,19 @@ def initialize_knowledge_base():
         print("Nenhum PDF encontrado.")
         return
 
-    for pdf in pdfs:
-        process_pdf(pdf)
+    seen_hashes = set()
+    for pdf in sorted(pdfs):
+        file_hash = hashlib.sha256(pdf.read_bytes()).hexdigest()
+        if file_hash in seen_hashes:
+            # A cópia canônica já foi salva; remove entradas antigas desta cópia.
+            prefix = hashlib.sha256(str(pdf.resolve()).encode()).hexdigest()[:16]
+            duplicate_ids = [identifier for identifier in collection.get(include=[])["ids"]
+                             if identifier.startswith(f"{prefix}_")]
+            if duplicate_ids:
+                collection.delete(ids=duplicate_ids)
+            print(f"PDF duplicado ignorado: {pdf.name}")
+            continue
+        if process_pdf(pdf):
+            seen_hashes.add(file_hash)
 
     print("Base de conhecimento inicializada.")

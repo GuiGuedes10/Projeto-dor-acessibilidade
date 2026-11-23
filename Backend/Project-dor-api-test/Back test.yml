@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: http://localhost:8000
+  url: http://localhost:8080
   auth: inherit
 
 settings:
@@ -13,4 +13,3 @@ settings:
   timeout: 0
   followRedirects: true
   maxRedirects: 5
-  forwardAuthorizationHeader: false
