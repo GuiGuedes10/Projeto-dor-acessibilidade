@@ -14,20 +14,22 @@ Use os resultados para responder ao usuário. Preserve as fontes e citações re
 Se o especialista informar que não encontrou dados, comunique essa limitação.
 Se uma ferramenta falhar, informe a falha; não invente um resultado nem afirme que a executou.
 Peça esclarecimentos quando faltarem detalhes necessários. Seja breve e direto.
+Use o histórico para entender referências a assuntos anteriores e formular perguntas completas às ferramentas.
 """
 
 
 def coordinator_agent(llm, query: str, *, extra_tools: list | None = None,
-                      max_iterations: int = 3):
+                      max_iterations: int = 3, history: list | None = None):
     if not isinstance(query, str) or not query.strip():
         raise ValueError('A pergunta não pode estar vazia.')
     if re.fullmatch(r'(oi|olá|ola|bom dia|boa tarde|boa noite|obrigado|obrigada)[!.,\s]*', query.strip(), re.I):
         return 'Olá! Posso ajudar com informações e serviços da PUC-Campinas. O que você precisa saber?'
-    rag_tool = build_rag_tool(llm)
+    rag_tool = build_rag_tool(llm, history=history) if history else build_rag_tool(llm)
     tools = [rag_tool, *(extra_tools or [])]
     return generate_response(
         llm=llm, prompt=query.strip(), tools=tools,
         system_prompt=SYSTEM_PROMPT, max_iterations=max_iterations,
         fallback_tool=rag_tool,
         return_direct_tools=(rag_tool.__name__,),
+        history=history,
     )

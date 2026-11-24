@@ -25,7 +25,7 @@ def generate_turn(llm, messages: list, tools: list) -> str:
 
 def generate_response(llm, prompt: str, tools: list, max_iterations: int = 3,
                       system_prompt: str | None = None, fallback_tool=None,
-                      return_direct_tools: tuple[str, ...] = ()):
+                      return_direct_tools: tuple[str, ...] = (), history: list | None = None):
     if max_iterations < 0:
         raise ValueError('max_iterations não pode ser negativo.')
     tool_map = {tool.__name__: tool for tool in tools}
@@ -34,6 +34,9 @@ def generate_response(llm, prompt: str, tools: list, max_iterations: int = 3,
     messages = []
     if system_prompt:
         messages.append({'role': 'system', 'content': system_prompt})
+    for message in (history or [])[-20:]:
+        if message.get('role') in {'user', 'assistant'} and isinstance(message.get('content'), str):
+            messages.append({'role': message['role'], 'content': message['content'][:2000]})
     messages.append({'role': 'user', 'content': prompt})
     remaining = max_iterations
     tool_executed = False

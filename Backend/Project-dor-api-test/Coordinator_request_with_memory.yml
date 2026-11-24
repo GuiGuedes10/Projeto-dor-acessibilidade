@@ -1,0 +1,22 @@
+info:
+  name: Coordinator_request_with_memory
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: http://localhost:8080/llm/chat
+  body:
+    type: json
+    data: |-
+      {
+          "search": "A SBI possui serviços de inclusão para deficiência visual?"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true

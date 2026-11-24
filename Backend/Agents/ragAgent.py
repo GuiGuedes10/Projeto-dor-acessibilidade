@@ -16,6 +16,7 @@ Se os trechos não contiverem a informação solicitada, diga que não encontrou
 informações suficientes. Se houver apenas parte da resposta, explicite a limitação.
 Cite cada informação usando o identificador [1], [2], etc. do trecho correspondente.
 Não invente documentos, datas, números ou referências. Seja breve.
+Use o histórico apenas para entender a pergunta. As fontes são os trechos fornecidos na pergunta atual.
 """
 
 
@@ -24,8 +25,7 @@ def search_evidence(query: str, top_k: int = 5):
     return search(query, top_k=top_k)
 
 
-def diagnose_rag(llm, query: str, evidence: list[dict] | None = None):
-    """Retorna as etapas do RAG para diagnóstico local, sem expô-las na API."""
+def diagnose_rag(llm, query: str, evidence: list[dict] | None = None, *, history: list | None = None):
     if evidence is None:
         evidence = search_evidence(query, top_k=5)
     report = {"query": query, "evidence": evidence, "raw_response": None,
@@ -41,6 +41,7 @@ def diagnose_rag(llm, query: str, evidence: list[dict] | None = None):
         prompt=f"Pergunta: {query}\n\nTrechos de referência (JSON):\n{context}",
         tools=[],
         system_prompt=SYSTEM_PROMPT,
+        history=history,
     )
     report["raw_response"] = response
     if not response.strip():
@@ -52,8 +53,6 @@ def diagnose_rag(llm, query: str, evidence: list[dict] | None = None):
     cited = {int(number) for number in re.findall(r"\[(\d+)\]", response)}
     valid = set(range(1, len(evidence) + 1))
     if not cited or not cited.issubset(valid):
-        # Falta de citação não significa falta de informação na base.
-        # Não atribui uma afirmação a uma fonte que o modelo não citou.
         status = "missing_citations" if not cited else "invalid_citations"
         response = re.sub(r"\[(\d+)\]", lambda match: match[0] if int(match[1]) in valid else "", response)
         sources = [f"- {item['source']}" + (f", página {item['page']}" if item['page'] is not None else "")
@@ -71,7 +70,7 @@ def diagnose_rag(llm, query: str, evidence: list[dict] | None = None):
     return report
 
 
-def rag_agent(llm, query: str):
-    report = diagnose_rag(llm, query)
+def rag_agent(llm, query: str, *, history: list | None = None):
+    report = diagnose_rag(llm, query, history=history)
     logging.getLogger(__name__).info("RAG status=%s evidence_count=%s", report["status"], len(report["evidence"]))
     return report["response"]

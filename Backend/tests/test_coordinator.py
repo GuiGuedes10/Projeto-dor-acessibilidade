@@ -28,6 +28,15 @@ class ToolExecutionTests(unittest.TestCase):
         self.assertIn('Olá', self.engine.generate_response({}, 'oi', [self.tool]))
         self.assertEqual(self.executed, [])
 
+    def test_history_is_passed_before_current_question(self):
+        self.turn.return_value = 'Resposta'
+        history = [{'role': 'user', 'content': 'Livros em Braille?'},
+                   {'role': 'assistant', 'content': 'Disponíveis na SBI.'}]
+        self.engine.generate_response({}, 'E onde?', [], system_prompt='Regras', history=history)
+        messages = self.turn.call_args.args[1]
+        self.assertEqual(messages[1:3], history)
+        self.assertEqual(messages[-1], {'role': 'user', 'content': 'E onde?'})
+
     def test_unverified_coordinator_answer_is_discarded(self):
         self.turn.return_value = 'Yes, SBI means São Bento Institute.'
         answer = self.engine.generate_response({}, 'SBI?', [self.tool], fallback_tool=self.tool)
@@ -104,6 +113,10 @@ class CoordinatorTests(unittest.TestCase):
 
     def test_chat_route_uses_coordinator_and_keeps_rag_endpoint(self):
         coordinator, rag = MagicMock(return_value='Coordenado'), MagicMock(return_value='Especialista')
+        chat_id = '59e2b4b1-89ec-4fb6-b897-24cd93276613'
+        store = MagicMock()
+        store.create_chat.return_value = chat_id
+        store.snapshot.return_value = ([], 0)
         with patch.object(sys, 'path', [str(ROOT), *sys.path]), patch.dict(sys.modules, {
             'Agents.coordinatorAgent': dependency('coordinator', coordinator_agent=coordinator),
             'Agents.ragAgent': dependency('rag', rag_agent=rag),
@@ -111,17 +124,28 @@ class CoordinatorTests(unittest.TestCase):
             from fastapi import FastAPI
             from fastapi.testclient import TestClient
             from Routes.llmRoute import router
+            from Controllers.LLM import coordinatorController
+            from Controllers.LLM import chatHistoryController
             app = FastAPI()
             app.state.llm = {'model': 'test'}
             app.include_router(router, prefix='/llm')
-            with TestClient(app) as client:
+            with patch.object(coordinatorController, 'ChatStore', return_value=store), patch.object(coordinatorController, 'encrypted', return_value='hashed-ip'), patch.object(chatHistoryController, 'ChatStore', return_value=store), patch.object(chatHistoryController, 'encrypted', return_value='hashed-ip') as hash_ip, TestClient(app) as client:
+                store.list_chats.return_value = [{'chat_id': chat_id, 'last_question': 'Última pergunta', 'response': 'Não deve sair'}]
+                listing = client.get('/llm/chats?user_id=outro-usuario', headers={'X-Forwarded-For': '1.2.3.4'})
+                self.assertEqual(listing.status_code, 200)
+                self.assertEqual(listing.json(), [{'chat_id': chat_id, 'last_question': 'Última pergunta'}])
+                hash_ip.assert_called_once_with('testclient')
+                store.list_chats.assert_called_once_with('hashed-ip')
+                store.list_chats.return_value = []
+                self.assertEqual(client.get('/llm/chats').json(), [])
+                self.assertEqual(client.post('/llm/chats').status_code, 405)
                 response = client.post('/llm/chat', json={'search': ' oi '})
                 self.assertEqual(response.status_code, 200)
-                self.assertEqual(response.json(), {'query': 'oi', 'response': 'Coordenado'})
+                self.assertEqual(response.json(), {'chat_id': chat_id, 'query': 'oi', 'response': 'Coordenado'})
                 self.assertEqual(client.post('/llm/rag', json={'search': 'SBI?'}).json()['response'], 'Especialista')
                 self.assertEqual(client.post('/llm/chat', json={}).status_code, 422)
                 self.assertEqual(client.post('/llm/chat', json={'search': '   '}).status_code, 422)
-            coordinator.assert_called_once_with(llm=app.state.llm, query='oi')
+            coordinator.assert_called_once_with(llm=app.state.llm, query='oi', history=[])
 
 
 if __name__ == '__main__':
