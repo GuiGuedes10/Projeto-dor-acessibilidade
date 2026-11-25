@@ -2,7 +2,7 @@ import logging
 from uuid import UUID
 
 from fastapi import Request, HTTPException
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 from redis.exceptions import RedisError
 
 from Agents.coordinatorAgent import coordinator_agent
@@ -13,6 +13,7 @@ from Services.redis.redis import ChatStore, ChatNotFoundError, ConcurrentChatErr
 class ChatRequest(BaseModel):
     search: str = Field(min_length=1)
     chat_id: UUID | None = None
+    url: HttpUrl | None = None
 
     @field_validator('search')
     @classmethod
@@ -31,8 +32,9 @@ def chat(body: ChatRequest, request: Request):
         store = ChatStore()
         chat_id = str(body.chat_id) if body.chat_id else store.create_chat(user_id)
         history, version = store.snapshot(user_id, chat_id)
-        response = coordinator_agent(llm=request.app.state.llm, query=query, history=history)
-        store.save_turn(user_id, chat_id, query, response, expected_version=version)
+        page_context = {'current_url': str(body.url)} if body.url is not None else {}
+        response = coordinator_agent(llm=request.app.state.llm, query=query, history=history, **page_context)
+        store.save_turn(user_id, chat_id, query, response, expected_version=version, **page_context)
     except ChatNotFoundError:
         raise HTTPException(404, 'Conversa não encontrada.')
     except ConcurrentChatError:

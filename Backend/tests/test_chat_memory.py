@@ -152,6 +152,19 @@ class ControllerMemoryTests(unittest.TestCase):
         self.generate.assert_not_called()
         self.store.save_turn.assert_not_called()
 
+    def test_current_url_is_passed_to_agent_and_stored(self):
+        url = 'https://www.puc-campinas.edu.br/sistemas-de-informacao/'
+        body = self.controller.ChatRequest(search='O que tem neste curso?', url=url)
+        self.controller.chat(body, self.request)
+        self.generate.assert_called_with(llm={}, query='O que tem neste curso?', history=[], current_url=url)
+        self.store.save_turn.assert_called_with('hashed-ip', self.chat_id, 'O que tem neste curso?',
+                                                'Resposta da LLM', expected_version=0, current_url=url)
+
+    def test_non_http_current_url_is_rejected(self):
+        from pydantic import ValidationError
+        with self.assertRaises(ValidationError):
+            self.controller.ChatRequest(search='Pergunta', url='javascript:alert(1)')
+
     def test_storage_failure_and_conflict_are_explicit(self):
         for error, expected in [(self.controller.RedisError(), 503), (self.controller.ConcurrentChatError(), 409)]:
             self.store.save_turn.side_effect = error

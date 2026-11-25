@@ -1,0 +1,23 @@
+info:
+  name: Coordinator_website_request
+  type: http
+  seq: 7
+
+http:
+  method: POST
+  url: http://localhost:8080/llm/chat
+  body:
+    type: json
+    data: |-
+      {
+          "search": "A onde preciso clicar pra acessar a areá logada?",
+          "url": "https://www.puc-campinas.edu.br/"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true

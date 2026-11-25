@@ -1,0 +1,24 @@
+info:
+  name: Coordinator_website_with_memory_request
+  type: http
+  seq: 8
+
+http:
+  method: POST
+  url: http://localhost:8080/llm/chat
+  body:
+    type: json
+    data: |-
+      {
+          "search": "Acessei a pagina aqui, e preciso acessar, como faço? aqui está pedindo algo sobre a microsoft auth",
+          "url": " https://educacional.puc-campinas.edu.br/aluno/#/login",
+        "chat_id": "0e2ba093-1fdb-4daf-8e69-e59721942342"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true

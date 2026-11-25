@@ -1,4 +1,3 @@
-"""Identificador estável e não reversível do IP usando HMAC-SHA256."""
 import hmac
 import ipaddress
 import os

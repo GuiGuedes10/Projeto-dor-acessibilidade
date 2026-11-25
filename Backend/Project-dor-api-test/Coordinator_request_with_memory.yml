@@ -10,7 +10,8 @@ http:
     type: json
     data: |-
       {
-          "search": "A SBI possui serviços de inclusão para deficiência visual?"
+          "search": "Como funciona a area logada da puc-campinas?",
+        "chat_id":"3cb036c9-4a88-477e-b738-65a638888b0c"
       }
   auth: inherit
 

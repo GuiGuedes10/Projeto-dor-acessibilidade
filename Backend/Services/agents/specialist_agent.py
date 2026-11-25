@@ -1,4 +1,3 @@
-"""Geração e execução limitada de ferramentas para os agentes locais."""
 import inspect
 import json
 import logging
@@ -41,7 +40,6 @@ def generate_response(llm, prompt: str, tools: list, max_iterations: int = 3,
     remaining = max_iterations
     tool_executed = False
 
-    # Uma geração final é permitida depois de consumir o orçamento de chamadas.
     for _ in range(max_iterations + 1):
         response = generate_turn(llm, messages, tools if remaining else [])
         matches = TOOL_CALL.findall(response)

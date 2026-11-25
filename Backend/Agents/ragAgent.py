@@ -1,6 +1,7 @@
 import json
 import re
 import logging
+import os
 
 from Services.agents.specialist_agent import generate_response
 
@@ -70,7 +71,11 @@ def diagnose_rag(llm, query: str, evidence: list[dict] | None = None, *, history
     return report
 
 
-def rag_agent(llm, query: str, *, history: list | None = None):
+def rag_agent(llm, query: str, *, history: list | None = None, current_url: str | None = None):
+    if (os.getenv('NEO4J_URI', '').strip() and os.getenv('NEO4J_PASSWORD', '').strip()
+            and (os.getenv('NEO4J_USER', '').strip() or os.getenv('NEO4J_USERNAME', '').strip())):
+        from Agents.websiteAgent import website_agent
+        return website_agent(llm, query, history=history, current_url=current_url)
     report = diagnose_rag(llm, query, history=history)
     logging.getLogger(__name__).info("RAG status=%s evidence_count=%s", report["status"], len(report["evidence"]))
     return report["response"]

@@ -24,7 +24,6 @@ def load_llm():
         raise ValueError('CUDA não está disponível. Use LLM_DEVICE=cpu no .env.')
 
     if device == 'cpu':
-        # Sem bitsandbytes e sem despacho automático para GPU/disco.
         options = {'device_map': {'': 'cpu'}, 'dtype': torch.float32}
     else:
         options = {

@@ -147,6 +147,15 @@ class CoordinatorTests(unittest.TestCase):
                 self.assertEqual(client.post('/llm/chat', json={'search': '   '}).status_code, 422)
             coordinator.assert_called_once_with(llm=app.state.llm, query='oi', history=[])
 
+    def test_rag_tool_passes_page_location_to_specialist(self):
+        tools = load_module('location_tools', 'Services/tools/agent_tools.py', {})
+        rag = MagicMock(return_value='Página SI')
+        history = [{'role': 'user', 'content': 'SI'}]
+        with patch.dict(sys.modules, {'Agents.ragAgent': dependency('rag', rag_agent=rag)}):
+            tool = tools.build_rag_tool({}, history=history, current_url='https://www.puc-campinas.edu.br/')
+            self.assertEqual(tool(query='Qual curso?'), 'Página SI')
+        rag.assert_called_once_with({}, 'Qual curso?', history=history, current_url='https://www.puc-campinas.edu.br/')
+
 
 if __name__ == '__main__':
     unittest.main()
