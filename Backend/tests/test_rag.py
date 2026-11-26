@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def load_module(name, path, dependencies):
     spec = importlib.util.spec_from_file_location(name, ROOT / path)
     module = importlib.util.module_from_spec(spec)
-    with patch.dict(sys.modules, dependencies):
+    with patch.object(sys, 'path', [str(ROOT), *sys.path]), patch.dict(sys.modules, dependencies):
         spec.loader.exec_module(module)
     return module
 
@@ -83,19 +83,19 @@ class RagTests(unittest.TestCase):
         })
         self.rag.search_evidence = self.search
 
-    def test_no_evidence_skips_llm(self):
+    def test_no_evidence_still_returns_generated_response(self):
         self.search.return_value = []
-        self.assertEqual(self.rag.rag_agent({}, 'documentos?'), self.rag.INSUFFICIENT_EVIDENCE)
+        self.generate.return_value = 'Resposta original.'
         report = self.rag.diagnose_rag({}, 'documentos?')
-        self.assertEqual(report['status'], 'no_evidence')
-        self.assertIsNone(report['raw_response'])
-        self.generate.assert_not_called()
+        self.assertEqual(report['response'], 'Resposta original.')
+        self.assertEqual(report['raw_response'], 'Resposta original.')
+        self.generate.assert_called_once()
 
-    def test_citations_and_system_rules(self):
+    def test_generated_response_and_system_rules_are_preserved(self):
         self.search.return_value = [{'source': 'manual.pdf', 'page': 42, 'text': 'RG e histórico'}]
         self.generate.return_value = 'RG e histórico. [1]'
-        answer = self.rag.rag_agent({}, 'documentos?')
-        self.assertIn('[1] manual.pdf, página 42', answer)
+        answer = self.rag.diagnose_rag({}, 'documentos?')['response']
+        self.assertEqual(answer, 'RG e histórico. [1]')
         args = self.generate.call_args.kwargs
         self.assertEqual(args['tools'], [])
         self.assertIn('NÃO são documentos para matrícula', args['system_prompt'])
@@ -107,22 +107,22 @@ class RagTests(unittest.TestCase):
         self.search.return_value = [{'source': 'guia.pdf', 'page': 12, 'text': texts[0]}]
         self.generate.return_value = 'Sim. Há livros em Braille e programas como NVDA.'
         report = self.rag.diagnose_rag({}, 'A SBI oferece inclusão visual?')
-        self.assertEqual(report['status'], 'missing_citations')
+        self.assertEqual(report['status'], 'answered')
         self.assertIn('Sim. Há livros em Braille', report['response'])
-        self.assertIn('Fontes consultadas', report['response'])
+        self.assertNotIn('Fontes', report['response'])
         self.assertEqual(report['raw_response'], self.generate.return_value)
 
     def test_invalid_citation_is_reported_without_fabricating_source(self):
         self.search.return_value = [{'source': 'guia.pdf', 'page': 12, 'text': 'Braille'}]
         self.generate.return_value = 'Sim, Braille. [9]'
         report = self.rag.diagnose_rag({}, 'Braille?')
-        self.assertEqual(report['status'], 'invalid_citations')
-        self.assertNotIn('[9]', report['response'])
+        self.assertEqual(report['status'], 'answered')
+        self.assertIn('[9]', report['response'])
         self.assertIn('[9]', report['raw_response'])
 
     def test_model_abstention_and_empty_output_have_distinct_statuses(self):
         evidence = [{'source': 'guia.pdf', 'page': 12, 'text': 'Braille'}]
-        for text, status in [(self.rag.INSUFFICIENT_EVIDENCE, 'model_abstained'), ('', 'empty_generation')]:
+        for text, status in [('Não encontrei informações suficientes para responder.', 'answered'), ('', 'empty_generation')]:
             self.generate.return_value = text
             self.assertEqual(self.rag.diagnose_rag({}, 'Braille?', evidence)['status'], status)
 

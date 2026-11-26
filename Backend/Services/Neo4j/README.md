@@ -1,5 +1,20 @@
 # Mapa do site parceiro
 
+## Organização do código
+
+- `neo4j_service.py`: interface das operações de páginas, links e caminhos.
+- `config.py`: leitura do `.env`, credenciais, limites e validação do esquema.
+- `connection.py`: criação e encerramento do driver e execução das consultas.
+- `queries.py`: construção das consultas Cypher e projeção dos campos.
+- `pages.py`: formatação dos resultados e tratamento de páginas restritas.
+- `urls.py`: política do domínio parceiro e variantes de URL do crawler.
+
+Os utilitários reutilizáveis ficam em `Backend/Utils`: `url_utils.py` valida e
+normaliza URLs com filtro opcional de domínio; `html_utils.py` extrai texto do
+HTML; `text_utils.py` prepara palavras-chave com filtros fornecidos pelo chamador.
+Esses utilitários não acessam o `.env` nem dependem do Neo4j. Os imports de
+`Neo4jService` e `get_service` continuam em `neo4j_service.py`.
+
 O service usa o driver oficial do Neo4j e consultas Cypher fixas e parametrizadas.
 Não executa Cypher fornecido pela LLM e não altera o grafo. Os caminhos respeitam
 o sentido das relações e têm até 15 saltos por padrão (`NEO4J_MAX_HOPS`, máximo 30).
@@ -71,11 +86,37 @@ manter clientes anteriores compatíveis. `chat_id` continua opcional para inicia
 ou retomar conversas. A resposta mantém `chat_id`, `query` e `response`.
 A URL também é armazenada na mensagem do usuário no Redis.
 
-O coordenador passa a localização ao especialista. Com as credenciais `NEO4J_*`
-configuradas, o especialista recebe as ferramentas `search_site_pages`,
-`read_site_page`, `get_page_links` e `find_site_path`, além de `consult_documents`
-para os PDFs. Sem configuração Neo4j, o RAG de documentos continua funcionando.
-Existe consulta de reserva ao grafo se o modelo ignorar chamadas de ferramentas.
+O coordenador passa a pergunta, a localização e o histórico ao único especialista
+institucional (`rag_agent`), sem substituir a pergunta original pelos argumentos
+reformulados pela LLM. Ele faz a recuperação inicial dos PDFs e coloca os
+trechos no prompt da pergunta atual. `search_documents` permite refinar a busca;
+`search_site_pages`, `read_site_page`, `get_page_links` e `find_site_path` consultam
+o grafo quando o especialista decidir que precisa delas. As consultas adicionais
+continuam sob decisão do especialista, sem delegar a outro agente.
+
+As credenciais não selecionam um agente diferente. Se o especialista escolher
+Neo4j sem configuração ou conexão válida, a ferramenta informa a falha. Perguntas
+sobre PDFs podem ser respondidas sem nenhuma consulta ao grafo. A URL atual é
+contexto, não uma ordem para usar Neo4j. Não há consulta automática de reserva ao
+grafo. A resposta final gerada pela LLM é devolvida sem filtros de conteúdo,
+checagem de URLs, exigência de consulta, limpeza de citações ou substituição por
+trechos dos documentos. O executor mantém a interpretação de chamadas de
+ferramentas, a validação de seus argumentos e o limite de execuções.
+O coordenador também produz sua resposta final após consultar o especialista,
+sem atalhos de retorno direto ou substituição automática de sua resposta.
+
+`diagnose_rag` permanece como diagnóstico isolado do processamento de PDFs; não
+é chamado por outro agente no fluxo principal do chat.
+
+A ferramenta `search_documents` é criada por
+`Services/tools/document_tools.py`, com fontes e resultados isolados por execução.
+Os prompts ficam em `Backend/Agents/prompts`, nos arquivos `coordinatorAgent_prompt.py`,
+`ragAgent_prompt.py` e `ragAgent_diagnostic_prompt.py`. As instruções compartilhadas
+do executor de ferramentas ficam em `specialist_agent_prompt.py`.
+
+Os prompts orientam a produzir linguagem adequada para leitura em voz alta,
+sem referências bibliográficas. Essa orientação não é imposta por filtros após
+a geração: se a LLM produzir citações ou links, o texto não é alterado pelo backend.
 
 O especialista distingue um link direto de um caminho confirmado no grafo. Não
 encontrar um caminho limitado não prova que não exista outro caminho no site.

@@ -28,6 +28,22 @@ class ToolExecutionTests(unittest.TestCase):
         self.assertIn('Olá', self.engine.generate_response({}, 'oi', [self.tool]))
         self.assertEqual(self.executed, [])
 
+    def test_refusal_without_tools_is_returned_without_retry(self):
+        self.turn.return_value = 'Não tenho informações.'
+        self.assertEqual(self.engine.generate_response({}, 'Braille?', [self.tool]), 'Não tenho informações.')
+        self.assertEqual(self.turn.call_count, 1)
+        self.assertEqual(self.executed, [])
+
+    def test_json_without_delimiters_is_executed(self):
+        self.turn.side_effect = ['```json\n{"name":"lookup","arguments":{"query":"Braille?"}}\n```<|im_end|>', 'Há Braille.']
+        self.engine.generate_response({}, 'Braille?', [self.tool])
+        self.assertEqual(self.executed, ['Braille?'])
+
+    def test_empty_answer_is_not_replaced(self):
+        self.turn.return_value = ''
+        self.assertEqual(self.engine.generate_response({}, 'Braille?', [self.tool]), '')
+        self.assertEqual(self.turn.call_count, 1)
+
     def test_history_is_passed_before_current_question(self):
         self.turn.return_value = 'Resposta'
         history = [{'role': 'user', 'content': 'Livros em Braille?'},
@@ -37,19 +53,16 @@ class ToolExecutionTests(unittest.TestCase):
         self.assertEqual(messages[1:3], history)
         self.assertEqual(messages[-1], {'role': 'user', 'content': 'E onde?'})
 
-    def test_unverified_coordinator_answer_is_discarded(self):
+    def test_unverified_coordinator_answer_is_not_discarded(self):
         self.turn.return_value = 'Yes, SBI means São Bento Institute.'
-        answer = self.engine.generate_response({}, 'SBI?', [self.tool], fallback_tool=self.tool)
-        self.assertEqual(self.executed, ['SBI?'])
-        self.assertIn('Braille', answer)
-        self.assertNotIn('São Bento', answer)
+        self.assertEqual(self.engine.generate_response({}, 'SBI?', [self.tool]), self.turn.return_value)
+        self.assertEqual(self.executed, [])
 
-    def test_specialist_response_is_not_rewritten(self):
-        self.turn.side_effect = [self.call(), 'Invented institution']
-        answer = self.engine.generate_response({}, 'SBI?', [self.tool], return_direct_tools=('lookup',))
-        self.assertEqual(self.turn.call_count, 1)
-        self.assertIn('guia.pdf', answer)
-        self.assertNotIn('Invented', answer)
+    def test_coordinator_final_generation_is_returned_after_tool_execution(self):
+        self.turn.side_effect = [self.call(), 'Resposta final da LLM. https://example.com/']
+        answer = self.engine.generate_response({}, 'SBI?', [self.tool])
+        self.assertEqual(self.turn.call_count, 2)
+        self.assertEqual(answer, 'Resposta final da LLM. https://example.com/')
 
     def test_tool_result_is_delivered_to_model(self):
         self.turn.side_effect = [self.call(), 'Sim, há Braille. [1] guia.pdf, página 12']
@@ -78,7 +91,7 @@ class ToolExecutionTests(unittest.TestCase):
         self.turn.return_value = self.call()
         response = self.engine.generate_response({}, 'teste', [self.tool], max_iterations=2)
         self.assertEqual(len(self.executed), 2)
-        self.assertIn('Limite', response)
+        self.assertEqual(response, self.call())
 
     def test_tool_exception_is_reported_without_exposing_exception(self):
         def broken(query: str):
@@ -109,7 +122,7 @@ class CoordinatorTests(unittest.TestCase):
         self.assertEqual(kwargs['tools'][1], other_tool)
         with patch.dict(sys.modules, {'Agents.ragAgent': dependency('rag', rag_agent=rag)}):
             self.assertEqual(kwargs['tools'][0](query=' Braille? '), 'Braille [1]')
-        rag.assert_called_once_with(model, 'Braille?')
+        rag.assert_called_once_with(model, 'Pergunta')
 
     def test_chat_route_uses_coordinator_and_keeps_rag_endpoint(self):
         coordinator, rag = MagicMock(return_value='Coordenado'), MagicMock(return_value='Especialista')
@@ -139,6 +152,22 @@ class CoordinatorTests(unittest.TestCase):
                 store.list_chats.return_value = []
                 self.assertEqual(client.get('/llm/chats').json(), [])
                 self.assertEqual(client.post('/llm/chats').status_code, 405)
+                messages = [{'role': 'user' if index % 2 == 0 else 'assistant', 'content': f'Mensagem {index}'} for index in range(32)]
+                messages[0]['url'] = 'https://www.puc-campinas.edu.br/'
+                store.snapshot.return_value = (messages, 32)
+                conversation = client.get(f'/llm/chats/{chat_id}?user_id=outro')
+                self.assertEqual(conversation.status_code, 200)
+                self.assertEqual(conversation.json(), {'chat_id': chat_id, 'messages': messages})
+                store.snapshot.assert_called_with('hashed-ip', chat_id, limit=None)
+                self.assertEqual(client.get('/llm/chats/id-invalido').status_code, 422)
+                store.snapshot.return_value = ([], 0)
+                self.assertEqual(client.get(f'/llm/chats/{chat_id}').json()['messages'], [])
+                store.snapshot.side_effect = chatHistoryController.ChatNotFoundError()
+                self.assertEqual(client.get(f'/llm/chats/{chat_id}').status_code, 404)
+                store.snapshot.side_effect = chatHistoryController.RedisError()
+                with self.assertLogs(chatHistoryController.__name__, level='ERROR'):
+                    self.assertEqual(client.get(f'/llm/chats/{chat_id}').status_code, 503)
+                store.snapshot.side_effect = None
                 response = client.post('/llm/chat', json={'search': ' oi '})
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.json(), {'chat_id': chat_id, 'query': 'oi', 'response': 'Coordenado'})

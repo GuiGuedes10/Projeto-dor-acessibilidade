@@ -58,7 +58,27 @@ Sem conversas, retorna `[]`. Conversas vazias (sem interação salva) não apare
 A rota não chama a LLM nem cria conversas. A busca usa SCAN, inclui as conversas
 anteriores à criação da rota e lê somente o último turno de cada chat do usuário.
 
-### Formato interno
+### Recuperar uma conversa completa
+
+`GET /llm/chats/{chat_id}` retorna as mensagens em ordem de gravação:
+
+```json
+{
+  "chat_id": "59e2b4b1-89ec-4fb6-b897-24cd93276613",
+  "messages": [
+    {"role": "user", "content": "A SBI possui livros em Braille?"},
+    {"role": "assistant", "content": "Resposta do assistente"}
+  ]
+}
+```
+
+O hash do IP é recalculado no servidor. Um ID inválido recebe 422; conversa
+inexistente ou de outro identificador recebe 404. Uma conversa existente sem
+mensagens retorna `messages: []`. A URL da mensagem é incluída quando foi salva.
+A leitura retorna todo o histórico, sem o limite de 20 mensagens usado no prompt,
+e não chama a LLM nem grava dados.
+
+### Formato das mensagens armazenadas
 
 - `chat:{UUID}:user_id`: HMAC-SHA256 do IP, usando o service de hash.
 - `chat:{UUID}:messages`: lista de JSONs com `role` e `content`.
@@ -86,3 +106,16 @@ python tests/test_redisBd.py --exercise
 O primeiro comando usa simulações para Redis e geração. O segundo envia PING.
 O terceiro cria uma conversa temporária no Redis real, verifica gravação,
 retomada, isolamento e conflito, e apaga somente as chaves que criou.
+
+## Diagnóstico do especialista
+
+```powershell
+python tests/diagnose_specialist.py --query "Como funciona a area logada da puc-campinas?" --fixture tests/fixtures/area_logada.json --output tests/area_logada_diagnostic_result.json
+```
+
+Esse comando usa a LLM real e os trechos fornecidos no teste, sem iniciar a API
+nem escrever no Redis. O relatório mostra a pergunta, as gerações e as chamadas
+de ferramentas. Sem `--fixture`, usa a busca real da ORM e o Neo4j configurado.
+A recuperação inicial dos PDFs ocorre antes da geração. A resposta é preservada
+conforme gerada, inclusive recusas, links e citações. Não há substituição automática
+por trechos literais nem filtros de conteúdo após a geração.

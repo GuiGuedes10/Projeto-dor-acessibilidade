@@ -1,0 +1,14 @@
+[
+  {
+    "query": "Como funciona a area logada da puc-campinas?",
+    "evidence_count": 5,
+    "answer_on_model_refusal": "Área Logada do Estudante A Área Logada do Estudante é o ambiente em que o estudante encontra as informações necessárias para ter um bom aproveitamento de seus estudos. É acessada pelo Portal da Universidade no endereço www.puc-campinas.edu.br, digitando-se Login (RA do estudante) e Senha (Atribuída pela Universidade, devendo ser modificada pelo estudante após o primeiro acesso) no caminho localizado no canto superior direito da tela. Perfil Na área do estudante, você encontrará a sua atualização cadastral, podendo alterar senha, logar e deslogar. Acadêmico Nesta área, você encontrará os seguintes recursos: - Ambiente Virtual de Aprendizagem – AVA - Financeiro - Disciplinas Cursadas (disciplinas, notas e situação acadêmica) - Grade de Disciplinas - Atualização Cadastral do Estudante Portal do Estudante O Portal do Estudante conta com uma estrutura para facilitar o seu dia a dia na PUC-Campinas.",
+    "expected_fact_found": true
+  },
+  {
+    "query": "A biblioteca da puc tem acessibilidade para deficiente visual?",
+    "evidence_count": 5,
+    "answer_on_model_refusal": "Biblioteca Sistema de Bibliotecas e Informações - SBI A Biblioteca Virtual é multiplataforma, podendo ser acessada via tablets, smartphones e computadores. Também é possível marcar o texto, fazer anotações e comentários, leituras off-line, além de ter acessibilidade para todos. Utilize o QR Code para conferir o vídeo do tutorial de acesso. Ou acesse o Portal do Estudante e, no menu da barra superior, clique em “Pesquisa” > Biblioteca > No menu da barra inferior, clique em “Pesquisas” > Biblioteca Virtual Pearson. Biblioteca Virtual Ambientes de inclusão – deficiência visual As salas de apoio à pessoa com deficiência visual oferecem acervo de livros em Braille (Biblioteca Campus I – Unidade 2 e Campus II) e, principalmente (partes de livros, artigos de periódicos) recomendados em bibliografia básica e/ou complementar, indicados pelo corpo docente das disciplinas oferecidas nos cursos de graduação e pós-graduação e gerados, sob demanda, pelo ProAces da PUC-Campinas.",
+    "expected_fact_found": true
+  }
+]

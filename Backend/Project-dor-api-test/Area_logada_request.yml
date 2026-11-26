@@ -1,0 +1,21 @@
+info:
+  name: Area_logada_request
+  type: http
+  seq: 9
+
+http:
+  method: POST
+  url: http://localhost:8080/llm/chat
+  body:
+    type: json
+    data: |-
+      {
+          "search": "Como funciona a area logada da puc-campinas?"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

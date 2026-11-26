@@ -78,6 +78,16 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(version, 2)
         self.pipe.lrange.assert_called_once_with(self.store.keys('id')[1], -20, -1)
 
+    def test_full_history_is_not_limited_or_truncated(self):
+        messages = [{'role': 'user' if index % 2 == 0 else 'assistant',
+                     'content': str(index) + 'a' * 3000} for index in range(32)]
+        messages[0]['url'] = 'https://www.puc-campinas.edu.br/'
+        self.pipe.execute.return_value = ['owner', 32, [json.dumps(message) for message in messages]]
+        actual, version = self.store.snapshot('owner', 'id', limit=None)
+        self.assertEqual(actual, messages)
+        self.assertEqual(version, 32)
+        self.pipe.lrange.assert_called_once_with(self.store.keys('id')[1], 0, -1)
+
     def test_other_user_cannot_read_or_write(self):
         self.pipe.execute.return_value = ['another-owner', 0, []]
         with self.assertRaises(self.module.ChatNotFoundError):

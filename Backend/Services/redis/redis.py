@@ -45,14 +45,14 @@ class ChatStore:
                 return chat_id
         raise RuntimeError('Não foi possível gerar um ID de conversa único.')
 
-    def snapshot(self, user_id: str, chat_id: str, limit: int = 20):
-        if limit < 1:
+    def snapshot(self, user_id: str, chat_id: str, limit: int | None = 20):
+        if limit is not None and limit < 1:
             raise ValueError('O limite de histórico deve ser positivo.')
         owner_key, messages_key = self.keys(chat_id)
         with self.client.pipeline(transaction=True) as pipe:
             pipe.get(owner_key)
             pipe.llen(messages_key)
-            pipe.lrange(messages_key, -limit, -1)
+            pipe.lrange(messages_key, -limit if limit is not None else 0, -1)
             owner, version, messages = pipe.execute()
         if owner != user_id:
             raise ChatNotFoundError('Conversa não encontrada.')
@@ -111,4 +111,4 @@ def save_chat(user_id: str, chat_id: str, user_message: str, llm_response: str,
 
 
 def get_chat_history(user_id: str, chat_id: str):
-    return ChatStore().snapshot(user_id, chat_id)[0]
+    return ChatStore().snapshot(user_id, chat_id, limit=None)[0]

@@ -10,7 +10,7 @@ http:
     type: json
     data: |-
       {
-          "search": "Como funciona a area logada da puc-campinas?"
+          "search": "A biblioteca da puc tem acessibilidade para deficiente visual?"
       }
   auth: inherit
 

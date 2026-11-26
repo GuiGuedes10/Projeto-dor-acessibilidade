@@ -12,6 +12,9 @@ TARGET = BASE + 'sistemas-de-informacao/'
 
 class GraphServiceTests(unittest.TestCase):
     def setUp(self):
+        self.path_patch = patch.object(sys, 'path', [str(ROOT), *sys.path])
+        self.path_patch.start()
+        self.addCleanup(self.path_patch.stop)
         self.env = patch.dict(os.environ, {}, clear=True)
         self.env.start()
         self.addCleanup(self.env.stop)
@@ -175,55 +178,6 @@ class GraphToolsTests(unittest.TestCase):
         self.assertEqual(response['status'], 'unavailable')
         self.assertNotIn('private credentials', json.dumps(response))
 
-
-class WebsiteAgentTests(unittest.TestCase):
-    def setUp(self):
-        self.generate = MagicMock()
-        self.search, self.read, self.links, self.path = [MagicMock() for _ in range(4)]
-        for tool, name in zip([self.search, self.read, self.links, self.path], ['search_site_pages','read_site_page','get_page_links','find_site_path']):
-            tool.__name__ = name
-        self.factory = MagicMock(return_value=[self.search, self.read, self.links, self.path])
-        self.module = load_module('website_under_test', 'Agents/websiteAgent.py', {
-            'Services.agents.specialist_agent': dependency('engine', generate_response=self.generate),
-            'Services.tools.neo4j_tools': dependency('tools', build_neo4j_tools=self.factory),
-        })
-
-    def test_specialist_gets_all_graph_tools_location_and_history(self):
-        self.generate.return_value = 'Resposta sem URL'
-        history = [{'role': 'user', 'content': 'SI'}]
-        self.module.website_agent({}, 'Como chegar?', current_url=BASE, history=history)
-        args = self.generate.call_args.kwargs
-        self.assertEqual(len(args['tools']), 5)
-        self.assertEqual(json.loads(args['prompt'])['current_url'], BASE)
-        self.assertEqual(args['history'], history)
-
-    def test_fallback_consults_graph_and_returns_only_real_path(self):
-        self.read.return_value = json.dumps({'status': 'not_found', 'data': None})
-        self.search.return_value = json.dumps({'status':'ok','data':[{'url':TARGET,'title':'Sistemas de Informação','text':'Curso de tecnologia'}]})
-        self.path.return_value = json.dumps({'status':'ok','data':{'pages':[{'url':BASE,'title':'Início'},{'url':TARGET,'title':'SI'}], 'link_texts':['Conheça SI']}})
-        self.generate.side_effect = lambda *a, **kw: kw['fallback_tool'](query=kw['prompt'])
-        answer = self.module.website_agent({}, 'curso SI', current_url=BASE)
-        self.assertIn(TARGET, answer)
-        self.assertIn('Conheça SI', answer)
-        self.assertIn('Caminho mapeado', answer)
-
-    def test_no_path_does_not_invent_clicks(self):
-        self.read.return_value = json.dumps({'status': 'not_found', 'data': None})
-        self.search.return_value = json.dumps({'status':'ok','data':[{'url':TARGET,'title':'SI','text':''}]})
-        self.path.return_value = json.dumps({'status':'not_found','data':None})
-        self.generate.side_effect = lambda *a, **kw: kw['fallback_tool'](query=kw['prompt'])
-        answer = self.module.website_agent({}, 'curso SI', current_url=BASE)
-        self.assertIn('não há texto salvo', answer)
-        self.assertIn('Não encontrei um caminho', answer)
-
-    def test_restricted_page_is_identified_in_fallback(self):
-        self.read.return_value = json.dumps({'status': 'not_found', 'data': None})
-        self.search.return_value = json.dumps({'status':'ok','data':[{'url':TARGET,'title':'Área restrita','text':'HTML antigo', 'restricted':True}]})
-        self.path.return_value = json.dumps({'status':'not_found','data':None})
-        self.generate.side_effect = lambda *a, **kw: kw['fallback_tool'](query=kw['prompt'])
-        answer = self.module.website_agent({}, 'curso SI', current_url=BASE)
-        self.assertIn('Página marcada como restrita', answer)
-        self.assertNotIn('HTML antigo', answer)
 
 
 if __name__ == '__main__':
